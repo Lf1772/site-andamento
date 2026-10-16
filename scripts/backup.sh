@@ -4,11 +4,19 @@
 # Restauração: psql "$DATABASE_URL" < banco.sql  &&  tar -xzf documentos.tar.gz -C "$STORAGE_DIR"
 # Guarde a STORAGE_ENCRYPTION_KEY separadamente: sem ela os documentos não podem ser recuperados.
 set -euo pipefail
+# Carrega o .env do diretório atual quando as variáveis não vierem do ambiente.
+if [ -z "${DATABASE_URL:-}" ] && [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
 STAMP=$(date +%Y%m%d-%H%M%S)
 DEST="${BACKUP_DIR:-./backups}/$STAMP"
 mkdir -p "$DEST"
 chmod 700 "$DEST"
 pg_dump --no-owner --no-privileges "$DATABASE_URL" > "$DEST/banco.sql"
+mkdir -p "${STORAGE_DIR:-./storage}"
 tar -czf "$DEST/documentos.tar.gz" -C "${STORAGE_DIR:-./storage}" .
 # Retém os últimos 30 backups
 ls -1dt "${BACKUP_DIR:-./backups}"/*/ 2>/dev/null | tail -n +31 | xargs -r rm -rf

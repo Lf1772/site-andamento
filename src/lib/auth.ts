@@ -55,7 +55,8 @@ export async function createSession(usuarioId: string): Promise<void> {
   ]);
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    // COOKIE_SECURE=false só deve ser usado em testes sem HTTPS.
+    secure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "true" : process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     expires,

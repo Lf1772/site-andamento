@@ -62,19 +62,37 @@ npm run build && npm start    # http://localhost:3000
 
 Para desenvolvimento: `npm run dev`.
 
-### Produção
+### Produção (instalação automática)
 
-- Use HTTPS (proxy reverso como Nginx ou Caddy) para ter criptografia em trânsito. Os cookies de sessão já saem `Secure` em produção, e o cabeçalho HSTS já é enviado.
-- Rode como processo Node de instância única (`npm start`): a análise em segundo plano e o limitador de tentativas de login ficam em memória.
-- Coloque `STORAGE_DIR` em um volume persistente, fora da pasta pública, com acesso apenas do usuário do serviço. Para criptografia completa em repouso, use também disco cifrado para o PostgreSQL.
-- Agende as rotinas:
+Em um servidor **Ubuntu 22.04 ou 24.04** novo (VPS com pelo menos 2 GB de RAM, de preferência na região de São Paulo), com o domínio já apontando para o IP do servidor:
 
-  ```cron
-  15 3 * * *  cd /srv/andamento && npm run retencao        # política de retenção (LGPD)
-  45 2 * * *  cd /srv/andamento && ./scripts/backup.sh     # backup do banco e dos documentos
-  ```
+```bash
+git clone https://github.com/Lf1772/site-andamento.git /tmp/site-andamento   # repositório privado: use um token do GitHub como senha
+sudo bash /tmp/site-andamento/scripts/deploy/instalar.sh
+```
 
-- Guarde a `STORAGE_ENCRYPTION_KEY` em local seguro e separado dos backups. Sem ela, os documentos não podem ser recuperados.
+O script pergunta o domínio, o nome do escritório, o administrador e a chave da API da Anthropic. Depois ele:
+
+- instala Node.js 22, PostgreSQL e Caddy (HTTPS automático com Let's Encrypt);
+- cria o usuário de sistema `andamento`, o código em `/srv/andamento` e o banco com senha aleatória;
+- gera o `.env` com a chave de criptografia dos documentos (o arquivo nunca é sobrescrito em execuções seguintes);
+- aplica as migrações, cria o administrador (gera uma senha se nenhuma for informada) e compila;
+- configura o serviço `systemd`, o HTTPS, o firewall e as rotinas diárias de backup (`/srv/backups`) e retenção.
+
+Para instalar sem perguntas, defina as variáveis antes: `DOMINIO`, `ESCRITORIO_NOME`, `ADMIN_NOME`, `ADMIN_EMAIL`, `ADMIN_SENHA` e `ANTHROPIC_API_KEY`. Se `DOMINIO` ficar vazio, o sistema é publicado pelo IP na porta 3000, sem HTTPS; use isso só para testes.
+
+Para atualizar depois (faz backup antes, recompila e reinicia):
+
+```bash
+sudo bash /srv/andamento/scripts/deploy/atualizar.sh
+```
+
+Cuidados:
+
+- Copie a `STORAGE_ENCRYPTION_KEY` de `/srv/andamento/.env` para um local seguro fora do servidor. Sem ela, os documentos não podem ser recuperados.
+- Copie os backups de `/srv/backups` periodicamente para fora do servidor.
+- O sistema roda como processo Node de instância única: a análise em segundo plano e o limitador de tentativas de login ficam em memória.
+- Registros do sistema: `journalctl -u andamento -n 100`.
 - Restauração: `psql "$DATABASE_URL" < banco.sql` e `tar -xzf documentos.tar.gz -C "$STORAGE_DIR"`.
 
 ## Segurança e LGPD
@@ -100,3 +118,5 @@ Para desenvolvimento: `npm run dev`.
 | `npm run db:seed` | Cria o escritório e o administrador iniciais |
 | `npm run retencao` | Aplica a política de retenção |
 | `scripts/backup.sh` | Backup do banco e dos documentos |
+| `scripts/deploy/instalar.sh` | Instalação completa em servidor Ubuntu |
+| `scripts/deploy/atualizar.sh` | Atualização de uma instalação existente |
